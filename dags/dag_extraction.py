@@ -13,11 +13,10 @@ log = LoggingMixin().log
 
 BASE_URL = "https://api.openbrewerydb.org/v1/breweries"
 META_URL = "https://api.openbrewerydb.org/v1/breweries/meta"
-RAW_PATH = "data_lake_mock/raw/"  # ajuste para seu path
-PER_PAGE = 100
+RAW_PATH = "data_lake_mock/raw/"  
 
 # -------------------------------------------------------------
-# DAG
+# DAG - Extração dos dados 
 # -------------------------------------------------------------
 
 @dag(
