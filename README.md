@@ -9,16 +9,18 @@ Pipeline para extração de dados de cervejarias
 openbrewerydb/
 │
 ├── config/            # Configuração do Airflow
-├── dags/               
+├── dags/     
+|   ├── utils/           
 ├── data_lake_mock/    # código fonte
-│   ├── raw            # Camada Raw (Bronze) 
-│   ├── silver         # Camada Silver
-│   └── gold           # Camada Gold
+│   ├── raw/            # Camada Raw (Bronze) 
+│   ├── silver/         # Camada Silver
+│   └── gold/           # Camada Gold
 ├── logs/ 
 ├── plugins/ 
 ├── tests/ 
 |   ├── dags/
 |   └── operators/ 
+
 ```
 
 ## Comandos iniciais
