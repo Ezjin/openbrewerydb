@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 
 
-def save_api_data(data, base_path, page, log):
+def save_data(data, base_path, page, log):
     """
     Salva o JSON retornado da API em disco, criando partições por data.
     
@@ -11,6 +11,7 @@ def save_api_data(data, base_path, page, log):
         data (list/dict): Dados retornados da API.
         base_path (str): Diretório base onde salvar os dados.
         page (int): Número da página (para nome do arquivo).
+        log (structlog): Criar com LoggingMixin().log.
     
     Returns:
         str: Caminho completo do arquivo salvo.

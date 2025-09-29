@@ -1,5 +1,6 @@
 from airflow.sdk import dag
 from airflow.decorators import task
+from airflow.datasets import Dataset
 from airflow.utils.log.logging_mixin import LoggingMixin
 from requests.exceptions import RequestException
 import time
@@ -7,25 +8,27 @@ import math
 import os
 from datetime import datetime
 from utils.get_api_data import get_api_data
-from utils.save_api_data import save_api_data
+
 
 log = LoggingMixin().log
-
+type(log)
 BASE_URL = "https://api.openbrewerydb.org/v1/breweries"
 META_URL = "https://api.openbrewerydb.org/v1/breweries/meta"
 RAW_PATH = "data_lake_mock/raw/"  
+PER_PAGE = 200
+DATASET_PATH = Dataset("/logs/trigger_silver.csv")
 
 # -------------------------------------------------------------
 # DAG - Extração dos dados 
 # -------------------------------------------------------------
 
 @dag(
-    schedule = "@daily",
+    schedule = "@monthly",
     start_date = datetime(2025, 9, 27),
     description = "Extração dos dados da API https://www.openbrewerydb.org/ ",
     tags=["extracao", "brewery"]
 )
-def extracao_dados_brewery():
+def extracao_brewery():
     
     @task(retries=3, retry_delay=60)
     def get_total_pages(per_page: int = PER_PAGE, log=log) -> int:
@@ -75,6 +78,12 @@ def extracao_dados_brewery():
                     raise
 
         log.info(f"Todas as páginas processadas. Total de páginas: {total_pages}")
+
+    @task(outlets=[DATASET_PATH])
+    def trigger_silver(log = log):
+
+        log.info("Transformação concluída e dataset atualizado.")
+
 # -----------------------------------------------------------
 # Fluxo
 # -----------------------------------------------------------
@@ -83,7 +92,7 @@ def extracao_dados_brewery():
     get_data = get_api_task(total_pages)
 
 
-    total_pages >> get_data 
+    total_pages >> get_data >> trigger_silver()
 
 
-extracao_dados_brewery()
+extracao_brewery()

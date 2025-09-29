@@ -18,8 +18,7 @@ openbrewerydb/
 ├── logs/ 
 ├── plugins/ 
 ├── tests/ 
-|   ├── dags/
-|   └── operators/ 
+|  
 
 ```
 
