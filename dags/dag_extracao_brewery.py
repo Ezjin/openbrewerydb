@@ -8,7 +8,7 @@ import math
 import os
 from datetime import datetime
 from utils.get_api_data import get_api_data
-from utils.save_data import save_data
+from utils.save_api_data import save_api_data
 
 log = LoggingMixin().log
 type(log)
@@ -66,7 +66,7 @@ def extracao_brewery():
             while not success and attempts < 3:
                 try:
                     data = get_api_data(url, log)
-                    save_data(data, RAW_PATH, page, log)
+                    save_api_data(data, RAW_PATH, page, log)
                     success = True
                     
                 except RequestException as e:

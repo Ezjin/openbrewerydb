@@ -1,13 +1,15 @@
 from airflow.sdk import dag
 from airflow.decorators import task
 from airflow.datasets import Dataset
-from utils.save_data import save_data
+from utils.silver_pipeline import silver_pipeline
 from datetime import datetime
 from airflow.utils.log.logging_mixin import LoggingMixin
+import os
+
 
 log = LoggingMixin().log
 
-
+RAW_PATH = "data_lake_mock/raw"
 SILVER_PATH = "data_lake_mock/silver"
 DATASET_PATH = Dataset("/logs/trigger_silver.csv")
 
@@ -24,10 +26,19 @@ DATASET_PATH = Dataset("/logs/trigger_silver.csv")
 def transformation_silver():
     
     @task()
-    def task1():
-        print("Funcionou")
+    def transformation(raw_path = RAW_PATH, silver_path = SILVER_PATH, log=log):
+        today = datetime.today()
 
+        read_path = os.path.join(
+            RAW_PATH,
+            f"year={today.year}",
+            f"month={today.month:02d}",
+            f"day={today.day:02d}"
+        )
+
+        silver_pipeline(read_path, SILVER_PATH, log)
     
-    task1()
+
+    transformation()
 
 transformation_silver()

@@ -2,6 +2,8 @@
 airflow.cfg 
 logs/
 *.json
+*.parquet
+data.py
 
 
 
