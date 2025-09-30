@@ -24,6 +24,13 @@ openbrewerydb/
 
 ## Comandos iniciais
 Se for a primeira vez que está rodando o docker compose no projeto:
+
+Rode isso para criar a imagem:
+```
+docker compose build
+```
+
+
 ```
 docker compose run airflow-cli airflow config list
 ```
@@ -34,3 +41,7 @@ Depois:
 docker compose up -d
 ```
 Para subir os containers do airflow.
+
+
+
+Estamos usando o pyarrow por que o fastparquet não instalou no docker com a imagem oficial do airflow.

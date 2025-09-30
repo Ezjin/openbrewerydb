@@ -2,10 +2,11 @@ import json
 import os
 import pandas as pd
 from datetime import datetime
+from airflow.exceptions import AirflowFailException
 
 def silver_pipeline(read_path, save_path, log):
     """
-    Lê um arquivo JSON e retorna seu conteúdo como um objeto Python (dict ou list).
+    Lê um arquivo JSON e salva em um arquivo .parquet em sua particao Country/State/City/batch.
 
     Args:
         read_path (str): Caminho do arquivo JSON.
@@ -36,13 +37,19 @@ def silver_pipeline(read_path, save_path, log):
                 try:
                     df = pd.DataFrame(data)
                     today = datetime.today().date()
+
+                    log.info("DataFrame criado com %d linhas e colunas: %s", len(df), df.columns.tolist())
+
                     for country in df["country"].unique():
+                        log.debug("Processando país: %s", country)
                         df_country = df[df["country"] == country]
                         country = country.lower().replace(" ", "_")
                         for state in df_country["state"].unique():
+                            log.debug("Processando estado: %s (país: %s)", state, country)
                             df_state = df_country[df_country["state"] == state]
                             state = state.lower().replace(" ", "_")
                             for city in df_state["city"].unique():
+                                log.debug("Processando cidade: %s (estado: %s, país: %s)", city, state, country)
                                 city = city.lower().replace(" ", "_")
                                 
                                 save_dir = os.path.join(
@@ -55,9 +62,23 @@ def silver_pipeline(read_path, save_path, log):
                                 os.makedirs(save_dir, exist_ok=True)
                                 
                                 save_filepath = os.path.join(save_dir, "breweries.parquet")
-                                df.to_parquet(save_filepath, engine="fastparquet", index=False, append=os.pah.exist(save_filepath))
-                except:
-                    log.error("Deu errado")
+                                
+                                if os.path.exists(save_filepath):
+                                    
+                                    df_existing = pd.read_parquet(save_filepath, engine="pyarrow")
+                                    
+                                    df_to_save = pd.concat([df_existing, df])
+                                else:
+                                    df_to_save = df
+
+                                df_to_save.to_parquet(save_filepath, engine="pyarrow", index=False)
+
+
+
+                                log.info("Arquivo salvo em %s", save_filepath)
+                except Exception as e:
+                    log.exception("Erro geral ao processar e salvar dados: {e}")
+                    raise AirflowFailException(f"silver_pipeline falhou: {e}")
                 
 
                 

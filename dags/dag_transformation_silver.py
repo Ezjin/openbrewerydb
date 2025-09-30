@@ -36,7 +36,7 @@ def transformation_silver():
             f"day={today.day:02d}"
         )
 
-        silver_pipeline(read_path, SILVER_PATH, log)
+        silver_pipeline(read_path, silver_path, log)
     
 
     transformation()
