@@ -35,7 +35,3 @@ Depois:
 docker compose up -d
 ```
 Para subir os containers do airflow.
-
-
-
-Estamos usando o pyarrow por que o fastparquet não instalou no docker com a imagem oficial do airflow.
