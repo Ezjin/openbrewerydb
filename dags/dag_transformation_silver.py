@@ -74,7 +74,7 @@ def transformation_silver():
             df = pd.concat(dfs, ignore_index=True)
             
             df_norm = normalize_brewery_df(df)
-            silver_pipeline(df_norm, silver_path, today.date(), log)
+            silver_pipeline(df_norm, silver_path, today.date(), log, i)
 
     @task(outlets=[DATASET_GOLD_PATH])
     def trigger_gold(log = log):
