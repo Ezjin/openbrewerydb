@@ -26,6 +26,9 @@ def silver_pipeline(df_raw, save_path, date, log, part=1):
             "state_norm": "state",
             "city_norm": "city"
         })
+        
+        # Remove linhas com NA, que não sabemos o nível de agregação de nossa análise
+        df = df.dropna(subset=["name", "country", "state", "city", "brewery_type"])
 
         for country in df["country"].unique():
             df_country = df[df["country"] == country]
