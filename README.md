@@ -25,12 +25,6 @@ openbrewerydb/
 ## Comandos iniciais
 Se for a primeira vez que está rodando o docker compose no projeto:
 
-Rode isso para criar a imagem:
-```
-docker compose build
-```
-
-
 ```
 docker compose run airflow-cli airflow config list
 ```

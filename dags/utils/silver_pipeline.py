@@ -63,18 +63,16 @@ def silver_pipeline(read_path, save_path, log):
                                 
                                 save_filepath = os.path.join(save_dir, "breweries.parquet")
                                 
-                                if os.path.exists(save_filepath):
+                                #if os.path.exists(save_filepath):
                                     
-                                    df_existing = pd.read_parquet(save_filepath, engine="pyarrow")
+                                #    df_existing = pd.read_parquet(save_filepath, engine="pyarrow")
                                     
-                                    df_to_save = pd.concat([df_existing, df])
-                                else:
-                                    df_to_save = df
+                                #    df_to_save = pd.concat([df_existing, df])
+                                #else:
+                                #    df_to_save = df
 
-                                df_to_save.to_parquet(save_filepath, engine="pyarrow", index=False)
-
-
-
+                                #df_to_save.to_parquet(save_filepath, engine="pyarrow", index=False)
+                                df.to_parquet(save_filepath, engine="fastparquet", index=False, append=os.path.exists(save_filepath))
                                 log.info("Arquivo salvo em %s", save_filepath)
                 except Exception as e:
                     log.exception("Erro geral ao processar e salvar dados: {e}")
