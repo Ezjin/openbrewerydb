@@ -4,8 +4,8 @@ from airflow.utils.log.logging_mixin import LoggingMixin
 from datetime import datetime, timedelta
 import math
 
-from utils.get_api_data import get_api_data  # usa LoggingMixin().log internamente
-from utils.save_api_data import save_api_data  # idem
+from utils.get_api_data import get_api_data  
+from utils.save_api_data import save_api_data
 
 log = LoggingMixin().log
 
@@ -32,7 +32,7 @@ def extracao_brewery():
         """Busca o total de itens da API e calcula o total de páginas."""
         log.info("Consultando meta endpoint: %s", META_URL)
         try:
-            meta = get_api_data(META_URL)  # utils já loga e trata erros
+            meta = get_api_data(META_URL)
         except ValueError as e:
             log.error("Falha ao obter meta: %s", e)
             raise
@@ -61,11 +61,10 @@ def extracao_brewery():
             url = f"{BASE_URL}?page={page}&per_page={per_page}"
             log.info("Buscando página %s/%s: %s", page, total_pages, url)
             try:
-                data = get_api_data(url)          # utils já tem timeout/erros/logs
-                save_api_data(data, RAW_PATH, page)  # idem
+                data = get_api_data(url)          
+                save_api_data(data, RAW_PATH, page) 
                 log.info("Página %s persistida com sucesso.", page)
             except ValueError as e:
-                # ValueError vem das utils (HTTP, timeout, JSON inválido, IO)
                 log.error("Erro ao processar página %s: %s", page, e)
                 raise
 

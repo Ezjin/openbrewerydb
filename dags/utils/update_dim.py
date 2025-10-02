@@ -38,7 +38,6 @@ def update_dim(
     work = df[[original_col]].copy()
     work[original_col] = work[original_col].astype("string")
 
-    # obter coluna normalizada
     if normalized_col and normalized_col in df.columns:
         work[target_norm_col] = df[normalized_col].astype("string")
     else:
@@ -46,20 +45,16 @@ def update_dim(
             raise AirflowFailException("update_dim: informe `normalized_col` ou `normalizer`.")
         work[target_norm_col] = work[original_col].apply(lambda x: None if pd.isna(x) else normalizer(str(x)))
 
-    # limpar
     work = work.dropna(subset=[original_col, target_norm_col]).drop_duplicates(subset=[original_col])
 
-    # carregar existente (se houver)
     p = Path(filepath)
     if p.exists():
         old = pd.read_parquet(p)
-        # garantir mesmas colunas
         missing = [c for c in [original_col, target_norm_col] if c not in old.columns]
         if missing:
             log.warning("update_dim: arquivo existente sem colunas %s; será reescrito.", missing)
             combined = work
         else:
-            # conflitos: mesmo original mapeado para outro normalizado → mantém o NOVO
             merged = pd.concat([old[[original_col, target_norm_col]], work], ignore_index=True)
             merged = merged.dropna(subset=[original_col, target_norm_col])
             merged = merged.drop_duplicates(subset=[original_col], keep="last")

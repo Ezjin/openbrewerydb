@@ -14,7 +14,7 @@ DATASET_GOLD_PATH = Dataset("/logs/trigger_gold.csv")
 log = LoggingMixin().log
 
 @dag(
-    schedule=[DATASET_GOLD_PATH],  # dispara quando o dataset for atualizado
+    schedule=[DATASET_GOLD_PATH],
     start_date=datetime(2025, 9, 27),
     description="Agregação para a camada Gold - Nº de cervejarias por País/Estado/Cidade",
     tags=["aggregation", "gold", "brewery"],

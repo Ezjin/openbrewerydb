@@ -53,7 +53,6 @@ def transformation_silver():
         log.info("update_dimensions: path=%s files=%s", read_path, len(files))
         if not files:
             log.warning("Nenhum arquivo JSON encontrado em %s (run %s).", read_path, day_run)
-            # Não falha a DAG: apenas não há nada para atualizar.
             return
 
         for i in range(0, len(files), batch_size):
@@ -74,7 +73,7 @@ def transformation_silver():
             df["state_norm"]   = df.get("state").map(normalize_name)     if "state"   in df else None
             df["city_norm"]    = df.get("city").map(normalize_name)      if "city"    in df else None
 
-            # Atualiza dims (função já valida/loga)
+            # Atualiza dims
             update_dim(df[["country", "country_norm"]].dropna(), "country", "country_norm",
                        os.path.join(silver_path_dim, "dim_country.parquet"))
             update_dim(df[["state", "state_norm"]].dropna(), "state", "state_norm",
@@ -117,15 +116,13 @@ def transformation_silver():
                 log.exception("Falha ao ler/concatenar JSONs do batch: %s", batch_files)
                 raise AirflowFailException(f"Erro de leitura de JSON: {e}") from e
 
-            df_norm = normalize_brewery_df(df)  # já valida e loga
-            # silver_pipeline já usa LoggingMixin().log; `part=i` garante particionamento estável
+            df_norm = normalize_brewery_df(df)
+
             silver_pipeline(df_norm, silver_path_fact, silver_path_dim, day_run, part=i)
 
     @task()
     def remove_duplicates() -> None:
-        
         day_run = get_run_day()
-        # função já usa logger interno
         remove_duplicates_batch(day_run, SILVER_PATH_FACT)
 
     @task(outlets=[DATASET_GOLD_PATH])

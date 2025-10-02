@@ -18,8 +18,6 @@ openbrewerydb/
 ├── logs/ 
 ├── plugins/ 
 ├── tests/ 
-|  
-
 ```
 
 ## Comandos iniciais

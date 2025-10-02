@@ -37,7 +37,7 @@ def remove_duplicates_batch(date: str, silver_path_fact: str) -> None:
             return
 
         dataset = ds.dataset(batch_path, format="parquet", partitioning="hive")
-        table = dataset.to_table()  # todo o batch
+        table = dataset.to_table() 
         if table.num_rows == 0:
             log.warning("Nenhum dado encontrado para batch=%s", date)
             return
@@ -71,11 +71,8 @@ def remove_duplicates_batch(date: str, silver_path_fact: str) -> None:
         log.info("Dedup batch=%s: antes=%s depois=%s removidos=%s",
                  date, n_before, n_after, n_before - n_after)
 
-        # Escrita: regrava SOMENTE o batch atual
-        # Observação: `overwrite_or_ignore` não remove arquivos antigos conflitantes.
         # Para garantir limpeza total, removemos o diretório do batch antes.
         try:
-            # Limpa diretório do batch para evitar coexistência de arquivos antigos
             for root, dirs, files in os.walk(batch_path, topdown=False):
                 for f in files:
                     os.remove(os.path.join(root, f))
@@ -87,9 +84,9 @@ def remove_duplicates_batch(date: str, silver_path_fact: str) -> None:
 
         ds.write_dataset(
             data=pa.Table.from_pandas(df_sorted, preserve_index=False),
-            base_dir=batch_path,                      # escreve dentro de batch=<date>
+            base_dir=batch_path,                      
             format="parquet",
-            partitioning=["country", "state", "part"],  # mantém a hierarquia sob o batch
+            partitioning=["country", "state", "part"], 
             partitioning_flavor="hive",
             existing_data_behavior="overwrite_or_ignore",
         )

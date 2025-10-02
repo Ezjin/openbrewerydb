@@ -6,7 +6,6 @@ from airflow.utils.log.logging_mixin import LoggingMixin
 
 log = LoggingMixin().log
 
-
 def normalize_name(value: str | None) -> str | None:
     """
     Normaliza uma string para formato padronizado:

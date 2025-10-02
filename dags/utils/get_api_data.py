@@ -26,11 +26,9 @@ def get_api_data(link: str) -> dict:
 
         try:
             payload = response.json()
-            # opcional: tamanho/shape sem vazar conteúdo
             log.info("JSON parse ok (%s bytes)", len(response.content))
             return payload
         except ValueError as e:
-            # JSON inválido
             preview = (response.text or "")[:200]
             log.error("JSON inválido ao acessar %s: preview='%s'", link, preview)
             raise ValueError(f"Resposta não-JSON em {link}") from e

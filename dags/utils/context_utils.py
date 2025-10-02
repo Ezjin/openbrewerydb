@@ -1,11 +1,10 @@
-# utils/context_utils.py
 from __future__ import annotations
 from airflow.operators.python import get_current_context
 import pendulum
 from typing import Optional
 
 def _to_pendulum(dt_or_str) -> pendulum.DateTime:
-    if hasattr(dt_or_str, "in_timezone"):  # já é pendulum
+    if hasattr(dt_or_str, "in_timezone"):
         return dt_or_str
     if isinstance(dt_or_str, str):
         # tenta parsear TS iso (contexto costuma trazer em UTC)
@@ -27,8 +26,8 @@ def get_run_day(tz: Optional[str] = None) -> str:
         ctx.get("logical_date"),
         ctx.get("data_interval_start"),
         ctx.get("execution_date"),
-        ctx.get("ts"),  # string ISO
-        ctx.get("ds"),  # string YYYY-MM-DD
+        ctx.get("ts"),  
+        ctx.get("ds"),  
     ]
 
     for c in candidates:
