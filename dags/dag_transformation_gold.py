@@ -2,6 +2,7 @@ from airflow.sdk import dag
 from airflow.decorators import task
 from airflow.datasets import Dataset
 from airflow.utils.log.logging_mixin import LoggingMixin
+from airflow.operators.python import get_current_context
 import pyarrow as pa
 import os
 from datetime import datetime
@@ -31,8 +32,10 @@ def transformation_gold():
 
     @task
     def aggregation_silver_to_gold(silver_path = SILVER_PATH, gold_path = GOLD_PATH, log = log):
+        context = get_current_context()
+        day_run = context["ds"]
 
-        gold_path_batch = os.path.join(gold_path, f"batch={today.date()}")
+        gold_path_batch = os.path.join(gold_path, f"batch={day_run}")
         
         gold_pipeline(silver_path, gold_path_batch, log)
 

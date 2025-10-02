@@ -11,7 +11,7 @@ from utils.get_api_data import get_api_data
 from utils.save_api_data import save_api_data
 
 log = LoggingMixin().log
-type(log)
+
 BASE_URL = "https://api.openbrewerydb.org/v1/breweries"
 META_URL = "https://api.openbrewerydb.org/v1/breweries/meta"
 RAW_PATH = "data_lake_mock/raw/"  
@@ -48,14 +48,6 @@ def extracao_brewery():
     @task(retries=3, retry_delay=60)
     def get_api_task(total_pages: int, per_page = PER_PAGE, log=log):
         """ Salva a consulta pagina a pagina """
-        today = datetime.today()
-        path = os.path.join(
-            RAW_PATH,
-            f"year={today.year}",
-            f"month={today.month:02d}",
-            f"day={today.day:02d}"
-        )
-
         for page in (range(1, total_pages + 1)):
             url = f"{BASE_URL}?page={page}&per_page={per_page}"
             log.info(f"Buscando página {page}/{total_pages}: {url}")
@@ -81,7 +73,6 @@ def extracao_brewery():
 
     @task(outlets=[DATASET_PATH])
     def trigger_silver(log = log):
-
         log.info("Transformação concluída e dataset atualizado.")
 
 # -----------------------------------------------------------
