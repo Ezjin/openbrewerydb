@@ -1,68 +1,52 @@
 import pandas as pd
 
-df = pd.read_parquet("./data_lake_mock/silver/dim/dim_state.parquet")
-
-df[df["state"] == "Westmeath"]
+df = pd.read_parquet("./data_lake_mock/gold/batch=2025-10-02/total.parquet")
 
 
+df[(df["city"].isna()) & (~df["country"].isna())]
+
+dim_country = pd.read_parquet("./data_lake_mock/silver/dim/dim_country.parquet")
+
+import pyarrow.dataset as ds
+import pyarrow.parquet as pq
+import pandas as pd
+from collections import defaultdict
+import pyarrow as pa
 
 
-import os
-from glob import glob
-from datetime import datetime
-from dags.utils.normalization import normalize_brewery_df
-today = datetime.today()
+silver_path = "./data_lake_mock/silver/batch=2025-10-02/country=united_states"
 
-RAW_PATH = "data_lake_mock/raw"
-read_path = os.path.join(
-            RAW_PATH,
-            f"year={today.year}",
-            f"month={today.month:02d}",
-            f"day={today.day:02d}"
-        )
-files = glob(os.path.join(read_path, "*.json"))
-for i in range(0, 1, 10):
-    batch_files = files[i:i+10]
-    
+# cria dataset recursivo
+dataset = ds.dataset(silver_path, format="parquet", partitioning="hive")
 
-    dfs = [pd.read_json(f) for f in batch_files]
-    df = pd.concat(dfs, ignore_index=True)
-    
-    df_norm = normalize_brewery_df(df)
-    df = (df_norm.merge(dim_country_df, on="country", how="left")
-            .merge(dim_state_df, on="state", how="left")
-            .merge(dim_city_df, on="city", how="left"))
+# Dicionário para contagem global
+counts = defaultdict(int)
+# Dicionário para nomes únicos já vistos por grupo
+group_seen = defaultdict(set)
 
-    # Substitui colunas originais pelos valores normalizados
-    df = df.drop(["country", "state", "city"], axis=1)
-    df = df.rename(columns={
-        "country_norm": "country",
-        "state_norm": "state",
-        "city_norm": "city"
-    })
+# Cria scanner
+scanner = dataset.scanner(columns=["name", "state","city","brewery_type"], batch_size=65000)
 
+# Processa cada batch
+for batch in scanner.to_batches():
+    table = pa.Table.from_batches([batch])
 
-    df[df["country"].isna()]
+    # Itera pelas linhas do batch
+    for record in table.to_pylist():
+        key = (record["state"], record["city"], record["brewery_type"])
+        name = record["name"]
+        if name not in group_seen[key]:
+            counts[key] += 1
+            group_seen[key].add(name)
+
+# Converte resultado final para Table
+if counts:
+    df = pd.DataFrame(
+        [(k[0], k[1], k[2], v) for k, v in counts.items()],
+        columns=["state","city","brewery_type","count"]
+    ).sort_values("count", ascending=False, ignore_index=True)
+else:
+    df = pd.DataFrame(columns=["country","state","city","brewery_type","count"])
 
 
-save_path = "./data_lake_mock/silver"
-# Carrega dimensões
-dim_country_df = pd.read_parquet(os.path.join(save_path, "dim/dim_country.parquet"))
-dim_state_df   = pd.read_parquet(os.path.join(save_path, "dim/dim_state.parquet"))
-dim_city_df    = pd.read_parquet(os.path.join(save_path, "dim/dim_city.parquet"))
-
-# Merge com dimensões
-df = (df_norm.merge(dim_country_df, on="country", how="left")
-            .merge(dim_state_df, on="state", how="left")
-            .merge(dim_city_df, on="city", how="left"))
-
-# Substitui colunas originais pelos valores normalizados
-df = df.drop(["country", "state", "city"], axis=1)
-df = df.rename(columns={
-    "country_norm": "country",
-    "state_norm": "state",
-    "city_norm": "city"
-})
-
-
-df[df["city"].isna()]
+df[(df["state"].isna())]

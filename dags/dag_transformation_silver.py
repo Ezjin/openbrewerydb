@@ -15,7 +15,8 @@ log = LoggingMixin().log
 today = datetime.today()
 
 RAW_PATH = "data_lake_mock/raw"
-SILVER_PATH = "data_lake_mock/silver"
+SILVER_PATH_DIM = "data_lake_mock/silver/dim"
+SILVER_PATH_FACT = "data_lake_mock/silver/fact"
 DATASET_SILVER_PATH = Dataset("/logs/trigger_silver.csv")
 DATASET_GOLD_PATH = Dataset("/logs/trigger_gold.csv")
 
@@ -29,7 +30,7 @@ read_path = os.path.join(
 # -------------------------------------------------------------
 # DAG - Tratamento Silver Layer 
 # -------------------------------------------------------------
-
+ 
 @dag(
     schedule= [DATASET_SILVER_PATH],
     start_date=datetime(2025, 9, 27),
@@ -39,12 +40,11 @@ read_path = os.path.join(
 def transformation_silver():
 
     @task()
-    def update_dim(raw_path = read_path, silver_path = SILVER_PATH, log = log, batch_size = 10):
-        files = glob(os.path.join(read_path, "*.json"))
+    def update_dim(raw_path = read_path, silver_path_dim = SILVER_PATH_DIM, log = log, batch_size = 10):
+        
+        files = glob(os.path.join(raw_path, "*.json"))
         log.info(f"Total de arquivos encontrados: {len(files)}")
-
-        dim_path = os.path.join(silver_path, "dim")
-        os.makedirs(dim_path, exist_ok=True)
+        os.makedirs(silver_path_dim, exist_ok=True)
 
         for i in range(0, len(files), batch_size):
             batch_files = files[i:i+batch_size]
@@ -58,13 +58,14 @@ def transformation_silver():
             df["city_norm"]    = df["city"].map(normalize_name)
 
             # Atualizar dimensões
-            update_dimension(df[["country", "country_norm"]].dropna(), "country_norm", os.path.join(dim_path, "dim_country.parquet"))
-            update_dimension(df[["state", "state_norm"]].dropna(), "state_norm", os.path.join(dim_path, "dim_state.parquet"))
-            update_dimension(df[["city", "city_norm"]].dropna(), "city_norm", os.path.join(dim_path, "dim_city.parquet"))
+            update_dimension(df[["country", "country_norm"]].dropna(), "country_norm", os.path.join(silver_path_dim, "dim_country.parquet"))
+            update_dimension(df[["state", "state_norm"]].dropna(), "state_norm", os.path.join(silver_path_dim, "dim_state.parquet"))
+            update_dimension(df[["city", "city_norm"]].dropna(), "city_norm", os.path.join(silver_path_dim, "dim_city.parquet"))
 
     @task()
-    def transformation(raw_path = read_path, silver_path = SILVER_PATH, log = log, batch_size = 10):
-        files = glob(os.path.join(read_path, "*.json"))
+    def transformation(raw_path = read_path, silver_path_fact = SILVER_PATH_FACT, silver_path_dim = SILVER_PATH_DIM, log = log, batch_size = 10):
+        
+        files = glob(os.path.join(raw_path, "*.json"))
         log.info(f"Total de arquivos encontrados: {len(files)}")
         for i in range(0, len(files), batch_size):
             batch_files = files[i:i+batch_size]
@@ -74,8 +75,8 @@ def transformation_silver():
             df = pd.concat(dfs, ignore_index=True)
             
             df_norm = normalize_brewery_df(df)
-            silver_pipeline(df_norm, silver_path, today.date(), log, i)
-
+            silver_pipeline(df_norm, silver_path_fact, silver_path_dim, today.date(), log, i)
+ 
     @task(outlets=[DATASET_GOLD_PATH])
     def trigger_gold(log = log):
 

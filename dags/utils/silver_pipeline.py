@@ -4,12 +4,12 @@ import pyarrow as pa
 import pyarrow.dataset as ds
 from airflow.exceptions import AirflowFailException
 
-def silver_pipeline(df_raw, save_path, date, log, part=1):
+def silver_pipeline(df_raw, save_path_fact, save_path_dim,  date, log, part=1):
     try:
         # Carrega dimensões
-        dim_country_df = pd.read_parquet(os.path.join(save_path, "dim/dim_country.parquet"))
-        dim_state_df   = pd.read_parquet(os.path.join(save_path, "dim/dim_state.parquet"))
-        dim_city_df    = pd.read_parquet(os.path.join(save_path, "dim/dim_city.parquet"))
+        dim_country_df = pd.read_parquet(os.path.join(save_path_dim, "dim_country.parquet"))
+        dim_state_df   = pd.read_parquet(os.path.join(save_path_dim, "dim_state.parquet"))
+        dim_city_df    = pd.read_parquet(os.path.join(save_path_dim, "dim_city.parquet"))
 
         # Merge com dimensões
         df = (df_raw.merge(dim_country_df, on="country", how="left")
@@ -38,14 +38,14 @@ def silver_pipeline(df_raw, save_path, date, log, part=1):
             
             ds.write_dataset(
                 pa.Table.from_pandas(df_country),
-                base_dir=save_path,
+                base_dir=save_path_fact,
                 format="parquet",
                 partitioning=["batch", "country", "state", "part"],
                 partitioning_flavor="hive",
                 existing_data_behavior="overwrite_or_ignore"
             )
 
-        log.info(f"Silver dataset salvo em {os.path.join(save_path, f'batch={date}')}")
+        log.info(f"Silver dataset salvo em {os.path.join(save_path_fact, f'batch={date}')}")
         
     except Exception as e:
         log.exception(f"Erro ao processar e salvar dados: {e}")

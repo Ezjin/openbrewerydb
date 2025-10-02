@@ -2,45 +2,40 @@ from airflow.sdk import dag
 from airflow.decorators import task
 from airflow.datasets import Dataset
 from airflow.utils.log.logging_mixin import LoggingMixin
-import pyarrow.dataset as ds
-import pyarrow.compute as pc
 import pyarrow as pa
+import os
+from datetime import datetime
 
-from collections import defaultdict
+from utils.gold_pipeline import gold_pipeline
 
-silver_path = "data_lake_mock/silver/"
 
-# Lê o dataset Hive-style
-dataset = ds.dataset(silver_path, format="parquet", partitioning="hive")
+SILVER_PATH = "data_lake_mock/silver/fact"
+GOLD_PATH = "data_lake_mock/gold"
+DATASET_GOLD_PATH = Dataset("/logs/trigger_gold.csv")
 
-# Inicializa um dicionário para contar
-counts = defaultdict(int)
+today = datetime.today()
 
-# Cria um scanner que lê em batches (padrão 64k linhas por batch)
-scanner = dataset.scanner(batch_size=65536)
+log = LoggingMixin().log
 
-for batch in scanner.to_batches():
-    # Converte para Table
-    table = pa.Table.from_batches([batch])
-    
-    # Converte para Pandas apenas o batch
-    df_batch = table.to_pandas()
-    
-    # Remove duplicados no batch
-    df_batch = df_batch.drop_duplicates(subset=["name", "country", "state", "city", "brewery_type"])
-    
-    # Conta agregando no dicionário
-    for row in df_batch.itertuples(index=False):
-        key = (row.country, row.state, row.city, row.brewery_type)
-        counts[key] += 1
+# -------------------------------------------------------------
+# DAG - Tratamento Silver Layer 
+# -------------------------------------------------------------
 
-# Converte resultado final para DataFrame
-import pandas as pd
-result = pd.DataFrame(
-    [(k[0], k[1], k[2], k[3], v) for k, v in counts.items()],
-    columns=["country", "state", "city", "brewery_type", "count"]
+@dag(
+    schedule = [DATASET_GOLD_PATH],
+    start_date = datetime(2025, 9, 27),
+    description = "Agregação para a camada Gold - Número de Cervejarias por País/Estado/Cidade",
+    tags = ["aggregation", "gold", "brewery"]
 )
+def transformation_gold():
 
-print(result)
+    @task
+    def aggregation_silver_to_gold(silver_path = SILVER_PATH, gold_path = GOLD_PATH, log = log):
 
-result.sort_values("count", ascending=False)
+        gold_path_batch = os.path.join(gold_path, f"batch={today.date()}")
+        
+        gold_pipeline(silver_path, gold_path_batch, log)
+
+    aggregation_silver_to_gold()
+
+transformation_gold()
