@@ -1,89 +1,83 @@
-from airflow.sdk import dag
-from airflow.decorators import task
+from airflow.decorators import dag, task
 from airflow.datasets import Dataset
 from airflow.utils.log.logging_mixin import LoggingMixin
-from requests.exceptions import RequestException
-import time
+from datetime import datetime, timedelta
 import math
-import os
-from datetime import datetime
-from utils.get_api_data import get_api_data
-from utils.save_api_data import save_api_data
+
+from utils.get_api_data import get_api_data  # usa LoggingMixin().log internamente
+from utils.save_api_data import save_api_data  # idem
 
 log = LoggingMixin().log
 
 BASE_URL = "https://api.openbrewerydb.org/v1/breweries"
 META_URL = "https://api.openbrewerydb.org/v1/breweries/meta"
-RAW_PATH = "data_lake_mock/raw/"  
+RAW_PATH = "data_lake_mock/raw/"
 PER_PAGE = 200
 DATASET_PATH = Dataset("/logs/trigger_silver.csv")
 
 # -------------------------------------------------------------
-# DAG - Extração dos dados 
+# DAG - Extração dos dados
 # -------------------------------------------------------------
-
 @dag(
-    schedule = "@monthly",
-    start_date = datetime(2025, 9, 27),
-    description = "Extração dos dados da API https://www.openbrewerydb.org/ ",
-    tags=["extracao", "brewery"]
+    schedule="@monthly",
+    start_date=datetime(2025, 9, 27),
+    description="Extração dos dados da API https://www.openbrewerydb.org/ ",
+    tags=["extracao", "brewery"],
+    catchup=False,
 )
 def extracao_brewery():
-    
-    @task(retries=3, retry_delay=60)
-    def get_total_pages(per_page: int = PER_PAGE, log=log) -> int:
+
+    @task(retries=3, retry_delay=timedelta(seconds=60))
+    def get_total_pages(per_page: int = PER_PAGE) -> int:
         """Busca o total de itens da API e calcula o total de páginas."""
+        log.info("Consultando meta endpoint: %s", META_URL)
         try:
-            meta = get_api_data(META_URL, log)
-            total_items = meta["total"]
-            log.info(f"Total de itens na API: {total_items}")
-        except Exception as e:
-            log.error(f"Erro ao buscar meta da API: {e}")
+            meta = get_api_data(META_URL)  # utils já loga e trata erros
+        except ValueError as e:
+            log.error("Falha ao obter meta: %s", e)
             raise
 
-        total_pages = math.ceil(total_items / per_page)
-        log.info(f"Serão feitas {total_pages} requisições (per_page={per_page})")
-        return total_pages
-        
-    @task(retries=3, retry_delay=60)
-    def get_api_task(total_pages: int, per_page = PER_PAGE, log=log):
-        """ Salva a consulta pagina a pagina """
-        for page in (range(1, total_pages + 1)):
-            url = f"{BASE_URL}?page={page}&per_page={per_page}"
-            log.info(f"Buscando página {page}/{total_pages}: {url}")
-            
-            success = False
-            attempts = 0
-            
-            while not success and attempts < 3:
-                try:
-                    data = get_api_data(url, log)
-                    save_api_data(data, RAW_PATH, page, log)
-                    success = True
-                    
-                except RequestException as e:
-                    attempts += 1
-                    log.warning(f"Erro ao buscar página {page}: {e}. Tentativa {attempts}/3")
-                    time.sleep(5)
-                except Exception as e:
-                    log.error(f"Erro inesperado na página {page}: {e}")
-                    raise
+        total_items = meta.get("total")
+        if not isinstance(total_items, int) or total_items < 0:
+            log.error("Campo 'total' inválido no meta: %s", meta)
+            raise ValueError("Meta inválido: campo 'total' ausente ou inválido")
 
-        log.info(f"Todas as páginas processadas. Total de páginas: {total_pages}")
+        if per_page <= 0:
+            log.error("per_page inválido: %s", per_page)
+            raise ValueError("per_page deve ser > 0")
+
+        total_pages = math.ceil(total_items / per_page)
+        log.info("Itens=%s | per_page=%s | total_pages=%s", total_items, per_page, total_pages)
+        return total_pages
+
+    @task(retries=3, retry_delay=timedelta(seconds=60))
+    def get_api_task(total_pages: int, per_page: int = PER_PAGE) -> None:
+        """Consulta página a página e salva em RAW_PATH."""
+        if total_pages <= 0:
+            log.warning("Nenhuma página para processar (total_pages=%s)", total_pages)
+            return
+
+        for page in range(1, total_pages + 1):
+            url = f"{BASE_URL}?page={page}&per_page={per_page}"
+            log.info("Buscando página %s/%s: %s", page, total_pages, url)
+            try:
+                data = get_api_data(url)          # utils já tem timeout/erros/logs
+                save_api_data(data, RAW_PATH, page)  # idem
+                log.info("Página %s persistida com sucesso.", page)
+            except ValueError as e:
+                # ValueError vem das utils (HTTP, timeout, JSON inválido, IO)
+                log.error("Erro ao processar página %s: %s", page, e)
+                raise
+
+        log.info("Todas as páginas processadas. total_pages=%s", total_pages)
 
     @task(outlets=[DATASET_PATH])
-    def trigger_silver(log = log):
+    def trigger_silver() -> None:
         log.info("Transformação concluída e dataset atualizado.")
 
-# -----------------------------------------------------------
-# Fluxo
-# -----------------------------------------------------------
-
+    # Orquestração
     total_pages = get_total_pages()
     get_data = get_api_task(total_pages)
-
-
     total_pages >> get_data >> trigger_silver()
-
 
 extracao_brewery()

@@ -1,22 +1,27 @@
 import json
 import os
 from datetime import datetime
+from airflow.utils.log.logging_mixin import LoggingMixin
 
-
-def save_api_data(data, base_path, page, log):
+def save_api_data(data: dict | list, base_path: str, page: int) -> str:
     """
-    Salva o JSON retornado da API em disco, criando partições por data.
-    
+    Salva dados JSON retornados da API em partições por data (year/month/day).
+    Usa logger padrão do Airflow para registrar eventos.
+
     Args:
-        data (list/dict): Dados retornados da API.
-        base_path (str): Diretório base onde salvar os dados.
-        page (int): Número da página (para nome do arquivo).
-        log (structlog): Criar com LoggingMixin().log.
-    
+        data: Dados retornados da API (dict ou list).
+        base_path: Diretório base onde salvar os dados.
+        page: Número da página (para compor o nome do arquivo).
+
     Returns:
-        str: Caminho completo do arquivo salvo.
+        Caminho completo do arquivo salvo.
+
+    Raises:
+        OSError: Se ocorrer erro ao criar diretórios ou salvar arquivo.
     """
-    # Cria diretórios por ano/mês/dia
+    log = LoggingMixin().log
+
+    # Cria partições por data
     today = datetime.today()
     path = os.path.join(
         base_path,
@@ -26,14 +31,21 @@ def save_api_data(data, base_path, page, log):
     )
     os.makedirs(path, exist_ok=True)
 
-    # Salva JSON
     filename = os.path.join(path, f"breweries_page_{page:03d}.json")
+
     try:
-        with open(filename, "w") as f:
-            json.dump(data, f)
-        log.info(f"Página {page} salva em {filename} ({len(data)} itens)")
-    except Exception as e:
-        log.error(f"Erro ao salvar página {page} em {filename}: {e}")
+        with open(filename, "w", encoding="utf-8") as f:
+            # `ensure_ascii=False` mantém acentos, `indent=2` é opcional
+            json.dump(data, f, ensure_ascii=False)
+        log.info(
+            "Página %s salva em %s (tipo=%s, tamanho=%s)",
+            page,
+            filename,
+            type(data).__name__,
+            len(data) if hasattr(data, "__len__") else "N/A"
+        )
+    except Exception:
+        log.exception("Erro ao salvar página %s em %s", page, filename)
         raise
 
     return filename

@@ -1,19 +1,21 @@
-from airflow.sdk import dag
-from airflow.decorators import task
+from airflow.decorators import dag, task
 from airflow.datasets import Dataset
 from airflow.utils.log.logging_mixin import LoggingMixin
+from airflow.exceptions import AirflowFailException
 from airflow.operators.python import get_current_context
 from datetime import datetime
-import pandas as pd
-import os
+from pathlib import Path
 from glob import glob
-from utils.silver_pipeline import silver_pipeline
-from utils.dimensions import update_dimension
+import os
+import pandas as pd
+
+from utils.silver_pipeline import silver_pipeline           
+from utils.update_dim import update_dim              
 from utils.normalization import normalize_name, normalize_brewery_df
-from utils.remove_duplicates_batch import remove_duplicates_batch
+from utils.remove_duplicates_batch import remove_duplicates_batch  
+from utils.context_utils import get_run_day
 
 log = LoggingMixin().log
-today = datetime.today()
 
 RAW_PATH = "data_lake_mock/raw"
 SILVER_PATH_DIM = "data_lake_mock/silver/dim"
@@ -21,97 +23,116 @@ SILVER_PATH_FACT = "data_lake_mock/silver/fact"
 DATASET_SILVER_PATH = Dataset("/logs/trigger_silver.csv")
 DATASET_GOLD_PATH = Dataset("/logs/trigger_gold.csv")
 
-read_path = os.path.join(
-            RAW_PATH,
-            f"year={today.year}",
-            f"month={today.month:02d}",
-            f"day={today.day:02d}"
-        )
 
-# -------------------------------------------------------------
-# DAG - Tratamento Silver Layer 
-# -------------------------------------------------------------
- 
 @dag(
-    schedule = [DATASET_SILVER_PATH],
-    start_date = datetime(2025, 9, 27),
-    description = "Transformação para a camada Silver - JSON para PARQUET",
-    tags = ["transformation", "silver", "brewery"]
+    schedule=[DATASET_SILVER_PATH],
+    start_date=datetime(2025, 9, 27),
+    description="Transformação para a camada Silver - JSON -> Parquet particionado",
+    tags=["transformation", "silver", "brewery"],
+    catchup=False,
 )
 def transformation_silver():
 
     @task()
-    def update_dim(raw_path = RAW_PATH, silver_path_dim = SILVER_PATH_DIM, log = log, batch_size = 10):
-        context = get_current_context()
-        day_run = context["ds"]
+    def update_dimensions(raw_path: str = RAW_PATH,
+                          silver_path_dim: str = SILVER_PATH_DIM,
+                          batch_size: int = 10) -> None:
         
+        day_run = get_run_day()
         year, month, day = day_run.split("-")
 
         read_path = os.path.join(
-            RAW_PATH,
+            raw_path,
             f"year={year}",
             f"month={int(month):02d}",
-            f"day={int(day):02d}"
+            f"day={int(day):02d}",
         )
+        Path(silver_path_dim).mkdir(parents=True, exist_ok=True)
 
-        files = glob(os.path.join(read_path, "*.json"))
-        log.info(f"Total de arquivos encontrados: {len(files)}")
-        os.makedirs(silver_path_dim, exist_ok=True)
+        files = sorted(glob(os.path.join(read_path, "*.json")))
+        log.info("update_dimensions: path=%s files=%s", read_path, len(files))
+        if not files:
+            log.warning("Nenhum arquivo JSON encontrado em %s (run %s).", read_path, day_run)
+            # Não falha a DAG: apenas não há nada para atualizar.
+            return
 
         for i in range(0, len(files), batch_size):
-            batch_files = files[i:i+batch_size]
-            log.info(f"Processando batch {i//batch_size + 1}: {len(batch_files)} arquivos")
+            batch_files = files[i:i + batch_size]
+            log.info("Batch %s: %s arquivos", i // batch_size + 1, len(batch_files))
+            try:
+                dfs = [pd.read_json(f) for f in batch_files]
+                df = pd.concat(dfs, ignore_index=True)
+                if df.empty:
+                    log.warning("Batch vazio após concatenação; pulando.")
+                    continue
+            except Exception as e:
+                log.exception("Falha ao ler/concatenar JSONs do batch: %s", batch_files)
+                raise AirflowFailException(f"Erro de leitura de JSON: {e}") from e
 
-            dfs = [pd.read_json(f) for f in batch_files]
-            df = pd.concat(dfs, ignore_index=True)
-        
-            df["country_norm"] = df["country"].map(normalize_name)
-            df["state_norm"] = df["state"].map(normalize_name)
-            df["city_norm"] = df["city"].map(normalize_name)
+            # Normalizações de chave para dimensões
+            df["country_norm"] = df.get("country").map(normalize_name) if "country" in df else None
+            df["state_norm"]   = df.get("state").map(normalize_name)     if "state"   in df else None
+            df["city_norm"]    = df.get("city").map(normalize_name)      if "city"    in df else None
 
-            # Atualizar dimensões
-            update_dimension(df[["country", "country_norm"]].dropna(), "country_norm", os.path.join(silver_path_dim, "dim_country.parquet"))
-            update_dimension(df[["state", "state_norm"]].dropna(), "state_norm", os.path.join(silver_path_dim, "dim_state.parquet"))
-            update_dimension(df[["city", "city_norm"]].dropna(), "city_norm", os.path.join(silver_path_dim, "dim_city.parquet"))
+            # Atualiza dims (função já valida/loga)
+            update_dim(df[["country", "country_norm"]].dropna(), "country", "country_norm",
+                       os.path.join(silver_path_dim, "dim_country.parquet"))
+            update_dim(df[["state", "state_norm"]].dropna(), "state", "state_norm",
+                       os.path.join(silver_path_dim, "dim_state.parquet"))
+            update_dim(df[["city", "city_norm"]].dropna(), "city", "city_norm",
+                       os.path.join(silver_path_dim, "dim_city.parquet"))
 
     @task()
-    def transformation(raw_path = RAW_PATH, silver_path_fact = SILVER_PATH_FACT, silver_path_dim = SILVER_PATH_DIM, log = log, batch_size = 10):
-        context = get_current_context()
-        day_run = context["ds"]
+    def transformation(raw_path: str = RAW_PATH,
+                       silver_path_fact: str = SILVER_PATH_FACT,
+                       silver_path_dim: str = SILVER_PATH_DIM,
+                       batch_size: int = 10) -> None:
         
+        day_run = get_run_day()
         year, month, day = day_run.split("-")
 
         read_path = os.path.join(
-            RAW_PATH,
+            raw_path,
             f"year={year}",
             f"month={int(month):02d}",
-            f"day={int(day):02d}"
+            f"day={int(day):02d}",
         )
 
-        files = glob(os.path.join(read_path, "*.json"))
-        log.info(f"Total de arquivos encontrados: {len(files)}")
-        
-        for i in range(0, len(files), batch_size):
-            batch_files = files[i:i+batch_size]
-            log.info(f"Processando batch {i//batch_size + 1}: {len(batch_files)} arquivos")
+        files = sorted(glob(os.path.join(read_path, "*.json")))
+        log.info("transformation: path=%s files=%s", read_path, len(files))
+        if not files:
+            log.warning("Nenhum arquivo JSON encontrado em %s (run %s).", read_path, day_run)
+            return
 
-            dfs = [pd.read_json(f) for f in batch_files]
-            df = pd.concat(dfs, ignore_index=True)
-            
-            df_norm = normalize_brewery_df(df)
-            silver_pipeline(df_norm, silver_path_fact, silver_path_dim, day_run, log, i)
+        for i in range(0, len(files), batch_size):
+            batch_files = files[i:i + batch_size]
+            log.info("Batch %s: %s arquivos", i // batch_size + 1, len(batch_files))
+            try:
+                dfs = [pd.read_json(f) for f in batch_files]
+                df = pd.concat(dfs, ignore_index=True)
+                if df.empty:
+                    log.warning("Batch vazio após concatenação; pulando.")
+                    continue
+            except Exception as e:
+                log.exception("Falha ao ler/concatenar JSONs do batch: %s", batch_files)
+                raise AirflowFailException(f"Erro de leitura de JSON: {e}") from e
+
+            df_norm = normalize_brewery_df(df)  # já valida e loga
+            # silver_pipeline já usa LoggingMixin().log; `part=i` garante particionamento estável
+            silver_pipeline(df_norm, silver_path_fact, silver_path_dim, day_run, part=i)
 
     @task()
-    def remove_duplicates(ds = None, log = log):
-        context = get_current_context()
-        day_run = context["ds"]
-        remove_duplicates_batch(day_run, SILVER_PATH_FACT, log)
- 
+    def remove_duplicates() -> None:
+        
+        day_run = get_run_day()
+        # função já usa logger interno
+        remove_duplicates_batch(day_run, SILVER_PATH_FACT)
+
     @task(outlets=[DATASET_GOLD_PATH])
-    def trigger_gold(log = log):
+    def trigger_gold() -> None:
+        log.info("Finalizada transformação para camada silver; dataset_gold atualizado.")
 
-        log.info("Finalizada transformação para camada silver.")
-    
-    update_dim() >> transformation() >> remove_duplicates() >> trigger_gold()
+    update_dimensions() >> transformation() >> remove_duplicates() >> trigger_gold()
+
 
 transformation_silver()
