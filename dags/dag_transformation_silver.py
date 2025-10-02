@@ -2,6 +2,7 @@ from airflow.sdk import dag
 from airflow.decorators import task
 from airflow.datasets import Dataset
 from airflow.utils.log.logging_mixin import LoggingMixin
+from airflow.operators.python import get_current_context
 from datetime import datetime
 import pandas as pd
 import os
@@ -9,7 +10,7 @@ from glob import glob
 from utils.silver_pipeline import silver_pipeline
 from utils.dimensions import update_dimension
 from utils.normalization import normalize_name, normalize_brewery_df
-
+from utils.remove_duplicates_batch import remove_duplicates_batch
 
 log = LoggingMixin().log
 today = datetime.today()
@@ -64,9 +65,11 @@ def transformation_silver():
 
     @task()
     def transformation(raw_path = read_path, silver_path_fact = SILVER_PATH_FACT, silver_path_dim = SILVER_PATH_DIM, log = log, batch_size = 10):
-        
+        context = get_current_context()
+        ds = context["ds"]  # string "YYYY-MM-DD"
         files = glob(os.path.join(raw_path, "*.json"))
         log.info(f"Total de arquivos encontrados: {len(files)}")
+        
         for i in range(0, len(files), batch_size):
             batch_files = files[i:i+batch_size]
             log.info(f"Processando batch {i//batch_size + 1}: {len(batch_files)} arquivos")
@@ -75,13 +78,19 @@ def transformation_silver():
             df = pd.concat(dfs, ignore_index=True)
             
             df_norm = normalize_brewery_df(df)
-            silver_pipeline(df_norm, silver_path_fact, silver_path_dim, today.date(), log, i)
+            silver_pipeline(df_norm, silver_path_fact, silver_path_dim, ds, log, i)
+
+    @task()
+    def remove_duplicates(ds = None, log = log):
+        context = get_current_context()
+        ds = context["ds"]  # string "YYYY-MM-DD"
+        remove_duplicates_batch(ds, SILVER_PATH_FACT, log)
  
     @task(outlets=[DATASET_GOLD_PATH])
     def trigger_gold(log = log):
 
         log.info("Finalizada transformação para camada silver.")
     
-    update_dim() >> transformation() >> trigger_gold()
+    update_dim() >> transformation() >> remove_duplicates() >> trigger_gold()
 
 transformation_silver()
