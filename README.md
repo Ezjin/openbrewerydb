@@ -134,19 +134,19 @@ openbrewerydb-main/
 - Camada Silver
 
 ```
-   coluna         tipo     descrição
-   id	            string	identificador da brewery
-   name	         string	nome
-   brewery_type	string	tipo (ex.: micro, regional, brewpub)
-   street	      string	logradouro
-   city	         string	cidade (normalizada)
-   state	         string	estado/província (normalizado)
-   postal_code	   string	CEP/código postal
-   country	      string	país (normalizado)
-   latitude	      float64	latitude
-   longitude	   float64	longitude
-   phone	         string	telefone
-   website_url	   string	site
+   coluna            tipo        descrição
+   id                string      identificador da brewery
+   name              string      nome
+   brewery_type      string      tipo (ex.: micro, regional, brewpub)
+   street            string      logradouro
+   city              string      cidade (normalizada)
+   state             string      estado/província (normalizado)
+   postal_code       string      CEP/código postal
+   country           string      país (normalizado)
+   latitude          float64     latitude
+   longitude         float64     longitude
+   phone             string      telefone
+   website_url       string      site
 ```
 
 - Camada Gold
