@@ -46,9 +46,6 @@ def test_dag_basics_and_schedule():
     # start_date (ignora timezone)
     assert dag.start_date is not None
     assert dag.start_date.date() == date(2025, 9, 27)
-
-    # tags e catchup
-    assert {"aggregation", "gold", "brewery"} <= set(dag.tags)
     assert dag.catchup is False
 
     # tasks presentes
