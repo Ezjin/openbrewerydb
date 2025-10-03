@@ -108,6 +108,7 @@ openbrewerydb-main/
 
 # Colunas 
 - Camada Raw (JSON)
+```
    [{
         "id": "5128df48-79fc-4f0f-8b52-d06be54d0cec",
         "name": "(405) Brewing Co",
@@ -128,8 +129,11 @@ openbrewerydb-main/
     },
     
     ]
+```
+
 - Camada Silver
-   
+
+```
    coluna         tipo     descrição
    id	            string	identificador da brewery
    name	         string	nome
@@ -143,10 +147,12 @@ openbrewerydb-main/
    longitude	   float64	longitude
    phone	         string	telefone
    website_url	   string	site
+```
 
 - Camada Gold
-
+```
    country        state      city        breweries_count
    united states  oklahoma   norman      12
    united states  california san_diego   45
    brazil         sao_paulo  campinas    10
+```

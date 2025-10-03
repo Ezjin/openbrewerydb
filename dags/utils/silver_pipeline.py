@@ -40,7 +40,7 @@ def silver_pipeline(
     )
 
     try:
-        # ===== Validação do raw =====
+        # Validação
         if df_raw is None or df_raw.empty:
             raise AirflowFailException("df_raw vazio ou None.")
 
@@ -48,7 +48,7 @@ def silver_pipeline(
             df_raw, ["country", "state", "city", "name", "brewery_type"], "df_raw"
         )
 
-        # ===== Carrega dimensões =====
+        # Dimensões
         p_country = os.path.join(save_path_dim, "dim_country.parquet")
         p_state = os.path.join(save_path_dim, "dim_state.parquet")
         p_city = os.path.join(save_path_dim, "dim_city.parquet")
@@ -68,7 +68,7 @@ def silver_pipeline(
         require_columns(dim_city_df, ["city", "city_norm"], "dim_city")
         require_columns(dim_brewery_type_df, ["brewery_type", "brewery_type_norm"], "dim_brewery_type")
 
-        # ===== Merge com dimensões (LEFT) =====
+        # Merge Dimensões
         df = (
             df_raw.merge(dim_country_df, on="country", how="left")
                   .merge(dim_state_df, on="state", how="left")
@@ -77,7 +77,7 @@ def silver_pipeline(
                   .copy()
         )
 
-        # Linhas que não casaram dimensão serão dropadas a seguir; logar antes:
+        # Checa o que deu miss e dropa (Não é espero nenhum miss)
         miss_country = df["country_norm"].isna().sum()
         miss_state = df["state_norm"].isna().sum()
         miss_city = df["city_norm"].isna().sum()
@@ -92,7 +92,7 @@ def silver_pipeline(
         if df.empty:
             raise AirflowFailException("DataFrame pós-merge ficou vazio.")
 
-        # ===== Substitui colunas pelas normalizadas =====
+        # Substitui colunas
         require_columns(df, ["country_norm", "state_norm", "city_norm"], "pós-merge")
         df = (
             df.drop(["country", "state", "city", "brewery_type"], axis=1)
@@ -104,7 +104,7 @@ def silver_pipeline(
               })
         )
 
-        # ===== Remoção de linhas sem granularidade mínima (NA) =====
+        # Seleciona somente as linhas completas
         before = len(df)
         df = df.dropna(subset=["name", "country", "state", "city", "brewery_type"]).copy()
         after = len(df)
@@ -113,16 +113,14 @@ def silver_pipeline(
         if after < before:
             log.info("Registros removidos por NA: %s -> %s (removidos=%s)", before, after, before - after)
 
-        # ===== Escrita particionada =====
-        # Coerção mínima para strings em partições (robustez)
+        # Escrita
+        # Garantindo ser string
         df["country"] = df["country"].astype(str)
         df["state"]   = df["state"].astype(str)
-
-        # Garantir consistência de types nas colunas adicionadas
         batch_str = str(date)
         part_str  = str(part)
 
-        # Escreve por país (opcional, mantém memória baixa em grandes dados)
+        # Escreve por país 
         unique_countries = df["country"].dropna().unique().tolist()
         log.info("Países a escrever: %s", unique_countries)
 
@@ -135,7 +133,7 @@ def silver_pipeline(
             df_country.loc[:, "batch"] = batch_str
             df_country.loc[:, "part"]  = part_str
 
-            # Esquema de partição estilo Hive: batch=.../country=.../state=.../part=...
+            # Salva nas partições
             try:
                 ds.write_dataset(
                     data=pa.Table.from_pandas(df_country, preserve_index=False),
@@ -156,7 +154,6 @@ def silver_pipeline(
         log.info("Silver salvo em %s/batch=%s", save_path_fact, batch_str)
 
     except AirflowFailException:
-        # já logado acima; apenas propagar
         raise
     except Exception as e:
         log.exception("Erro inesperado na silver_pipeline")
