@@ -12,11 +12,26 @@ O objetivo é demonstrar boas práticas na construção de um data lake por cama
 - Docker e Docker Compose instalados.
 
 ### Subindo o ambiente
+
+Crie os segredos necessários. Usando **Python** :
+
 ```bash
-docker-compose up -d
+mkdir -p secrets
+python -c "import secrets; print(secrets.token_hex(32))" > secrets/jwt_secret
+python -c "import secrets; print(secrets.token_hex(32))" > secrets/webserver_secret_key
 ```
 
-Isso criará os containers do Airflow (webserver, scheduler, postgres e redis).  
+Para subir o ambiente do Airflow iniciar com:
+```bash
+docker compose up -d airflow-init
+```
+
+Depois rodar:
+```bash
+docker compose up -d 
+```
+
+Isso criará os containers do Airflow (apiserver, scheduler, postgres, redis e etc).  
 O Airflow estará disponível em: [http://localhost:8080](http://localhost:8080)  
 Usuário e senha padrão: `airflow / airflow`.
 
@@ -103,6 +118,12 @@ openbrewerydb-main/
 - Incluir versionamento de dados e metadados para maior rastreabilidade.
 
 ---
+
+### Monitoramento e alertas
+O monitoramento do pipeline pode ser implementado utilizando o sistema de alertas do próprio Airflow.
+Esse recurso permite enviar notificações automáticas em casos de falha e sucesso se necessario, garantindo que problemas sejam detectados rapidamente.
+Sendo possível configurar diferentes destinatários por DAG ou task, dependendo da necessidade e responsável.
+Os alertas são enviados assim que uma tarefa falha.
 
 ## Sobre os dados
 

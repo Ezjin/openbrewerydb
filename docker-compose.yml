@@ -67,6 +67,11 @@ x-airflow-common:
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-apiserver:8080/execution/'
+    AIRFLOW__API_AUTH__JWT_SECRET: /opt/airflow/secrets/jwt_secret
+    AIRFLOW__WEBSERVER__SECRET_KEY_CMD: "cat /opt/airflow/secrets/webserver_secret_key"
+    AIRFLOW__WEBSERVER__BASE_URL: "http://localhost:8080"
+    AIRFLOW__WEBSERVER__COOKIE_SAMESITE: "Lax"
+    AIRFLOW__WEBSERVER__COOKIE_SECURE: "False"
     
     # yamllint disable rule:line-length
     # Use simple http server on scheduler for health checks
@@ -84,6 +89,7 @@ x-airflow-common:
     - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
     - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
     - ${AIRFLOW_PROJ_DIR:-.}/data_lake_mock:/opt/airflow/data_lake_mock
+    - ${AIRFLOW_PROJ_DIR:-.}/secrets:/opt/airflow/secrets
   user: "${AIRFLOW_UID:-1000}:0"
   depends_on:
     &airflow-common-depends-on
