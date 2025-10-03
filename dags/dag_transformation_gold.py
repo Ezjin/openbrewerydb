@@ -32,9 +32,10 @@ def transformation_gold():
 
         # Gold particionada por batch para manter histórico de execuções
         gold_path_batch = os.path.join(gold_path, f"batch={day_run}")
-        log.info("Iniciando gold_pipeline: silver=%s gold_batch=%s", silver_path, gold_path_batch)
+        silver_path_bath = os.path.join(silver_path, f"batch={day_run}")
+        log.info("Iniciando gold_pipeline: silver=%s gold_batch=%s", silver_path_bath, gold_path_batch)
 
-        out_dir = gold_pipeline(silver_path=silver_path, gold_path=gold_path_batch)
+        out_dir = gold_pipeline(silver_path=silver_path_bath, gold_path=gold_path_batch)
         log.info("Gold concluído em: %s", out_dir)
         return out_dir
 
