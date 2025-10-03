@@ -78,6 +78,7 @@ openbrewerydb-main/
       - Cria/Update as tabelas dimensões no diretório silver/dim. Fazendo a normalização de todas as combinações de país, estado e cidade.
       - Faz a normalização das colunas ["country", "state", "city", "brewery_type"] 
       - Salva os arquivos particionando por pais, estado e part.
+      - Depois dos arquivos salvos, remove as linhas duplicadas já normalizadas.
    - dag_transformation_gold.py
       - Consome a Silver layer para fazer a agregação das cervejarias em um único arquivo, separados por batch.
 
