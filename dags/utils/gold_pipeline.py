@@ -4,7 +4,7 @@ import pyarrow as pa
 import pyarrow.dataset as ds
 from airflow.exceptions import AirflowFailException
 from airflow.utils.log.logging_mixin import LoggingMixin
-from utils.required_columns import require_columns
+from .required_columns import require_columns
 
 
 def gold_pipeline(
