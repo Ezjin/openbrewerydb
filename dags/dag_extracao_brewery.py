@@ -19,7 +19,7 @@ DATASET_PATH = Dataset("/logs/trigger_silver.csv")
 # DAG - Extração dos dados
 # -------------------------------------------------------------
 @dag(
-    schedule="@monthly",
+    schedule="@weekly",
     start_date=datetime(2025, 9, 27),
     description="Extração dos dados da API https://www.openbrewerydb.org/ ",
     tags=["extracao", "brewery"],

@@ -70,8 +70,9 @@ def transformation_silver():
 
             # Normalizações de chave para dimensões
             df["country_norm"] = df.get("country").map(normalize_name) if "country" in df else None
-            df["state_norm"]   = df.get("state").map(normalize_name)     if "state"   in df else None
-            df["city_norm"]    = df.get("city").map(normalize_name)      if "city"    in df else None
+            df["state_norm"] = df.get("state").map(normalize_name) if "state" in df else None
+            df["city_norm"] = df.get("city").map(normalize_name) if "city" in df else None
+            df["brewery_type_norm"] = df.get("brewery_type").map(normalize_name) if "brewery_type" in df else None
 
             # Atualiza dims
             update_dim(df[["country", "country_norm"]].dropna(), "country", "country_norm",
@@ -80,6 +81,8 @@ def transformation_silver():
                        os.path.join(silver_path_dim, "dim_state.parquet"))
             update_dim(df[["city", "city_norm"]].dropna(), "city", "city_norm",
                        os.path.join(silver_path_dim, "dim_city.parquet"))
+            update_dim(df[["brewery_type", "brewery_type_norm"]].dropna(), "brewery_type", "brewery_type_norm",
+                       os.path.join(silver_path_dim, "dim_brewery_type.parquet"))
 
     @task()
     def transformation(raw_path: str = RAW_PATH,

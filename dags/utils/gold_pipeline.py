@@ -1,17 +1,10 @@
 import os
-from typing import Sequence
-
 import pandas as pd
 import pyarrow as pa
 import pyarrow.dataset as ds
 from airflow.exceptions import AirflowFailException
 from airflow.utils.log.logging_mixin import LoggingMixin
-
-
-def _require_columns(df: pd.DataFrame, cols: Sequence[str], ctx: str) -> None:
-    missing = [c for c in cols if c not in df.columns]
-    if missing:
-        raise AirflowFailException(f"Colunas ausentes em {ctx}: {missing}")
+from utils.required_columns import require_columns
 
 
 def gold_pipeline(
@@ -67,7 +60,7 @@ def gold_pipeline(
 
             # valida chaves no primeiro batch útil
             if agg_series is None:
-                _require_columns(df_batch, keys, "silver_batch")
+                require_columns(df_batch, keys, "silver_batch")
 
             # groupby do lote atual
             gb = (

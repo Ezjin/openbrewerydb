@@ -1,18 +1,11 @@
 import os
 from typing import Iterable
-
 import pandas as pd
 import pyarrow as pa
 import pyarrow.dataset as ds
 from airflow.exceptions import AirflowFailException
 from airflow.utils.log.logging_mixin import LoggingMixin
-
-
-def _require_columns(df: pd.DataFrame, cols: Iterable[str], ctx: str) -> None:
-    """Valida a presença de colunas exigidas."""
-    missing = [c for c in cols if c not in df.columns]
-    if missing:
-        raise AirflowFailException(f"Colunas ausentes em {ctx}: {missing}")
+from utils.required_columns import require_columns
 
 
 def silver_pipeline(
@@ -47,60 +40,67 @@ def silver_pipeline(
     )
 
     try:
-        # ===== Validação básica do raw =====
+        # ===== Validação do raw =====
         if df_raw is None or df_raw.empty:
             raise AirflowFailException("df_raw vazio ou None.")
 
-        _require_columns(
+        require_columns(
             df_raw, ["country", "state", "city", "name", "brewery_type"], "df_raw"
         )
 
         # ===== Carrega dimensões =====
         p_country = os.path.join(save_path_dim, "dim_country.parquet")
-        p_state   = os.path.join(save_path_dim, "dim_state.parquet")
-        p_city    = os.path.join(save_path_dim, "dim_city.parquet")
+        p_state = os.path.join(save_path_dim, "dim_state.parquet")
+        p_city = os.path.join(save_path_dim, "dim_city.parquet")
+        p_brewery_type = os.path.join(save_path_dim, "dim_brewery_type.parquet")
 
         try:
             dim_country_df = pd.read_parquet(p_country)
-            dim_state_df   = pd.read_parquet(p_state)
-            dim_city_df    = pd.read_parquet(p_city)
+            dim_state_df = pd.read_parquet(p_state)
+            dim_city_df = pd.read_parquet(p_city)
+            dim_brewery_type_df = pd.read_parquet(p_brewery_type)
         except Exception as e:
             log.exception("Falha ao ler dimensões em %s | %s | %s", p_country, p_state, p_city)
             raise AirflowFailException(f"Erro ao ler dimensões: {e}") from e
 
-        _require_columns(dim_country_df, ["country", "country_norm"], "dim_country")
-        _require_columns(dim_state_df,   ["state", "state_norm"],     "dim_state")
-        _require_columns(dim_city_df,    ["city", "city_norm"],       "dim_city")
+        require_columns(dim_country_df, ["country", "country_norm"], "dim_country")
+        require_columns(dim_state_df, ["state", "state_norm"], "dim_state")
+        require_columns(dim_city_df, ["city", "city_norm"], "dim_city")
+        require_columns(dim_brewery_type_df, ["brewery_type", "brewery_type_norm"], "dim_brewery_type")
 
         # ===== Merge com dimensões (LEFT) =====
         df = (
             df_raw.merge(dim_country_df, on="country", how="left")
-                  .merge(dim_state_df,   on="state",   how="left")
-                  .merge(dim_city_df,    on="city",    how="left")
+                  .merge(dim_state_df, on="state", how="left")
+                  .merge(dim_city_df, on="city", how="left")
+                  .merge(dim_brewery_type_df, on="brewery_type", how="left")
                   .copy()
         )
 
         # Linhas que não casaram dimensão serão dropadas a seguir; logar antes:
         miss_country = df["country_norm"].isna().sum()
-        miss_state   = df["state_norm"].isna().sum()
-        miss_city    = df["city_norm"].isna().sum()
-        if any([miss_country, miss_state, miss_city]):
+        miss_state = df["state_norm"].isna().sum()
+        miss_city = df["city_norm"].isna().sum()
+        miss_brewery_type = df["brewery_type_norm"].isna().sum()
+
+        if any([miss_country, miss_state, miss_city, miss_brewery_type]):
             log.warning(
-                "Valores sem normalização: country=%s state=%s city=%s",
-                miss_country, miss_state, miss_city
+                "Valores sem normalização: country=%s state=%s city=%s brewery_type=%s",
+                miss_country, miss_state, miss_city, miss_brewery_type
             )
 
         if df.empty:
             raise AirflowFailException("DataFrame pós-merge ficou vazio.")
 
         # ===== Substitui colunas pelas normalizadas =====
-        _require_columns(df, ["country_norm", "state_norm", "city_norm"], "pós-merge")
+        require_columns(df, ["country_norm", "state_norm", "city_norm"], "pós-merge")
         df = (
-            df.drop(["country", "state", "city"], axis=1)
+            df.drop(["country", "state", "city", "brewery_type"], axis=1)
               .rename(columns={
                   "country_norm": "country",
-                  "state_norm":   "state",
-                  "city_norm":    "city",
+                  "state_norm": "state",
+                  "city_norm": "city",
+                  "brewery_type_norm": "brewery_type"
               })
         )
 
@@ -160,4 +160,4 @@ def silver_pipeline(
         raise
     except Exception as e:
         log.exception("Erro inesperado na silver_pipeline")
-        raise AirflowFailException(f"silver_pipeline falhou: {e}") from e
+        raise AirflowFailException(f"silver_pipeline falhou: {e}") from e 
